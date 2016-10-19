@@ -12,67 +12,55 @@ describe('ResilienceStrategy', ()=> {
 
     describe('successful response status codes', ()=> {
         it('should call resolve on an http status code between 200 and 299', ()=> {
-            let response = { status: 200 };
-            resilienceStrategy.validateResponse(response);
-
-            assert.isTrue(resilienceStrategy.onResolve.calledWith(response));
+            assetOnResolveIsCalledWithResponse(200);
         });
 
         it('should call resolve on a 302 http request status code', ()=> {
-            let response = { status: 302 };
-            resilienceStrategy.validateResponse(response);
-
-            assert.isTrue(resilienceStrategy.onResolve.calledWith(response));
+            assetOnResolveIsCalledWithResponse(302);
         });
         it('should call resolve on a 304 http request status code', ()=> {
-            let response = { status: 304 };
-            resilienceStrategy.validateResponse(response);
-
-            assert.isTrue(resilienceStrategy.onResolve.calledWith(response));
+            assetOnResolveIsCalledWithResponse(304);
         });
 
         it('should call resolve on a 1223 http request status code', ()=> {
-            let response = { status: 1223 };
+            assetOnResolveIsCalledWithResponse(1223);
+        });
+
+        function assetOnResolveIsCalledWithResponse(statusCode) {
+            let response = { target: { status: statusCode } };
+
             resilienceStrategy.validateResponse(response);
 
             assert.isTrue(resilienceStrategy.onResolve.calledWith(response));
-        });
+        }
     });
 
     describe('status codes that set resiliency backing off interval', ()=> {
+        it('should, when presented with the status code that represent \'too may reequests\' (429), delay calling retry', ()=> {
+            assertThatBackOffIntervalIsSetAndRetryIsCalledAfterDelay(429);
+        });
 
-        it('should, when presented with the status code that represent \'too may reequests\', delay calling retry', ()=> {
-            let response = { status: 429 };
+        it('should, when presented with the status code that represent \'request time out\' (408), delay calling retry', ()=> {
+            assertThatBackOffIntervalIsSetAndRetryIsCalledAfterDelay(408);
+        });
+
+        it('should, when presented with the status code that represent \'internal server error\' (500), delay calling retry', ()=> {
+            assertThatBackOffIntervalIsSetAndRetryIsCalledAfterDelay(500);
+        });
+
+        function assertThatBackOffIntervalIsSetAndRetryIsCalledAfterDelay(statusCode) {
+            let response = { target: { status: statusCode } };
+
             resilienceStrategy.validateResponse(response);
+
+            assert.equal(resilienceStrategy.currentBackoffInterval, BACK_OFF_INTERVAL);
 
             assert.isFalse(resilienceStrategy.onRetry.called);
 
             setTimeoutMock.tick(BACK_OFF_INTERVAL);
 
             assert.isTrue(resilienceStrategy.onRetry.called);
-        });
-
-        it('should, when presented with the status code that represent \'request time out\', delay calling retry', ()=> {
-            let response = { status: 408 };
-            resilienceStrategy.validateResponse(response);
-
-            assert.isFalse(resilienceStrategy.onRetry.called);
-
-            setTimeoutMock.tick(BACK_OFF_INTERVAL);
-
-            assert.isTrue(resilienceStrategy.onRetry.called);
-        });
-
-        it('should, when presented with the status code that represent \'internal server error\', delay calling retry', ()=> {
-            let response = { status: 500 };
-            resilienceStrategy.validateResponse(response);
-
-            assert.isFalse(resilienceStrategy.onRetry.called);
-
-            setTimeoutMock.tick(BACK_OFF_INTERVAL);
-
-            assert.isTrue(resilienceStrategy.onRetry.called);
-        });
+        }
 
         beforeEach(()=> setTimeoutMock = sinon.useFakeTimers());
         afterEach(()=> setTimeoutMock.restore());
@@ -84,16 +72,16 @@ describe('ResilienceStrategy', ()=> {
             const RETRIES = 3;
             createResilienceStrategy({ retries: RETRIES, backoffInterval: 0 });
 
-            resilienceStrategy.validateResponse({ status: 1 });
+            resilienceStrategy.validateResponse({ target: { status: 1 } });
             setTimeoutMock.tick(0);
 
-            resilienceStrategy.validateResponse({ status: 1 });
+            resilienceStrategy.validateResponse({ target: { status: 1 } });
             setTimeoutMock.tick(0);
 
-            resilienceStrategy.validateResponse({ status: 1 });
+            resilienceStrategy.validateResponse({ target: { status: 1 } });
             setTimeoutMock.tick(0);
 
-            resilienceStrategy.validateResponse({ status: 1 });
+            resilienceStrategy.validateResponse({ target: { status: 1 } });
             setTimeoutMock.tick(0);
 
             assert.isTrue(resilienceStrategy.onRetry.calledThrice);
@@ -122,5 +110,3 @@ describe('ResilienceStrategy', ()=> {
         resilienceStrategy.onResolve = sinon.spy();
     }
 });
-
-
